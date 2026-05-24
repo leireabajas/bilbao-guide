@@ -1,0 +1,48 @@
+<div class="container">
+  <h2 class="page-title">Tu Plan de Viaje 🗺️</h2>
+
+  <mat-accordion multi="false">
+
+    @for (item of tripDays; track item) {
+      <mat-expansion-panel class="day-panel">
+
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <strong>{{ item.day }}</strong>
+          </mat-panel-title>
+
+          <mat-panel-description>
+            {{ item.title }}
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <div class="panel-content">
+          <mat-icon color="primary" class="big-icon">{{ item.icon }}</mat-icon>
+
+          <p>{{ item.description }}</p>
+
+          <div class="day-places">
+            <h4>Lugares del día</h4>
+
+            <div class="places-chips">
+              @for (place of item.places; track place) {
+                <span class="place-chip">{{ getPlaceNameById(place) }}</span>
+              }
+            </div>
+          </div>
+
+          <button
+            mat-flat-button
+            color="primary"
+            class="open-map-btn"
+            (click)="openDayOnMap(item.places)"
+          >
+            Ver este día en el mapa
+          </button>
+        </div>
+
+      </mat-expansion-panel>
+    }
+
+  </mat-accordion>
+</div>

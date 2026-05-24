@@ -1,0 +1,303 @@
+<div class="map-container">
+  @if (selectedItineraryPlaces.length > 0) {
+    <div class="itinerary-filter-banner">
+      <span>Mostrando lugares del día seleccionado</span>
+
+      <button mat-stroked-button (click)="clearItineraryFilter()">
+        Ver todos
+      </button>
+    </div>
+  }
+
+  <!-- Contenedor donde Leaflet pinta el mapa -->
+  <div id="map"></div>
+
+  <!-- LEYENDA DEL MAPA -->
+  <div class="map-legend">
+    <div class="legend-item">
+      <span class="legend-dot locked"></span>
+      <span>Bloqueado</span>
+      <strong>{{ totalLockedPlaces }}</strong>
+    </div>
+
+    <div class="legend-item">
+      <span class="legend-dot available"></span>
+      <span>Disponible</span>
+      <strong>{{ totalAvailablePlaces }}</strong>
+    </div>
+
+    <div class="legend-item">
+      <span class="legend-dot visited"></span>
+      <span>Visitado</span>
+      <strong>{{ totalVisitedPlaces }}</strong>
+    </div>
+  </div>
+
+  <!-- Interruptor del modo administrador -->
+  <div class="admin-toggle">
+    <mat-slide-toggle
+      [checked]="isAdminMode"
+      (change)="toggleAdminMode($event)"
+      color="accent">
+      <span class="admin-text">Modo Admin 🛠️</span>
+    </mat-slide-toggle>
+  </div>
+
+  <!-- Ventana para introducir la contraseña del modo admin -->
+  @if (showPasswordInput) {
+    <div class="password-modal">
+      <mat-card class="password-card">
+        <h3>🔒 Acceso restringido</h3>
+        <p>Introduce la clave para continuar.</p>
+
+        <input
+          type="password"
+          [(ngModel)]="enteredPassword"
+          placeholder="Contraseña"
+          (keyup.enter)="checkPassword()"
+        />
+
+        <div class="password-actions">
+          <button mat-stroked-button (click)="cancelPassword()">
+            Cancelar
+          </button>
+
+          <button mat-flat-button color="primary" (click)="checkPassword()">
+            Confirmar
+          </button>
+        </div>
+      </mat-card>
+    </div>
+  }
+
+  <!-- Mensaje bonito cuando el acceso admin es correcto -->
+  @if (showSuccessMessage) {
+    <div class="password-modal">
+      <mat-card class="password-card success-card">
+        <h3>✅ Acceso concedido</h3>
+        <p>
+          El modo administrador ha sido activado.<br>
+          Ahora puedes modificar el estado de los lugares.
+        </p>
+
+        <button mat-flat-button color="primary" (click)="closeSuccessMessage()">
+          Entendido
+        </button>
+      </mat-card>
+    </div>
+  }
+
+  <!-- Mensaje bonito cuando la contraseña es incorrecta -->
+  @if (showErrorMessage) {
+    <div class="password-modal">
+      <mat-card class="password-card error-card">
+        <h3>⛔ Acceso denegado</h3>
+        <p>
+          La contraseña no es correcta.<br>
+          Vuelve a intentarlo si quieres activar el modo administrador.
+        </p>
+
+        <button mat-flat-button color="primary" (click)="closeErrorMessage()">
+          Entendido
+        </button>
+      </mat-card>
+    </div>
+  }
+
+  <!-- Mensaje general del mapa: GPS, éxito de desbloqueo o aviso -->
+  @if (showStatusMessage) {
+    <div class="password-modal">
+      <mat-card
+        class="password-card"
+        [class.success-card]="statusMessageType === 'success'"
+        [class.error-card]="statusMessageType === 'error'"
+        [class.info-card]="statusMessageType === 'info'"
+      >
+        <h3>{{ statusMessageTitle }}</h3>
+        <p>
+          {{ statusMessageText }}
+        </p>
+
+        <button mat-flat-button color="primary" (click)="closeStatusMessage()">
+          Entendido
+        </button>
+      </mat-card>
+    </div>
+  }
+
+  <!-- Confirmación bonita para bloquear o desbloquear un lugar -->
+  @if (showAdminConfirm) {
+    <div class="password-modal">
+      <mat-card class="password-card admin-confirm-card">
+        <h3>
+          {{ pendingAction === 'unlock' ? '🔓 Confirmar desbloqueo' : '🔒 Confirmar bloqueo' }}
+        </h3>
+
+        <p>
+          @if (pendingPlace) {
+            {{ pendingAction === 'unlock'
+            ? '¿Quieres desbloquear ' + pendingPlace.name + '?'
+            : '¿Quieres volver a bloquear ' + pendingPlace.name + '?' }}
+          }
+        </p>
+
+        <div class="password-actions">
+          <button mat-stroked-button (click)="cancelAdminConfirm()">
+            Cancelar
+          </button>
+
+          <button mat-flat-button color="primary" (click)="confirmAdminAction()">
+            Confirmar
+          </button>
+        </div>
+      </mat-card>
+    </div>
+  }
+  <button class="locate-me-btn" (click)="centerOnUser()">
+    <mat-icon>explore</mat-icon>
+  </button>
+
+
+  <!-- Tarjeta inferior con la información del lugar seleccionado -->
+  @if (selectedPlace) {
+    <div class="info-card-overlay">
+      <mat-card class="place-info-card">
+
+        <div class="image-header">
+          <img [src]="selectedPlace.image" [alt]="selectedPlace.name">
+
+          <button class="close-btn" (click)="closeCard()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="card-content">
+          <div class="place-title-row">
+            <h2 class="place-title">{{ selectedPlace.name }}</h2>
+
+            <span
+              class="place-status-badge"
+              [ngClass]="getPlaceStatusClass(selectedPlace)"
+            >
+    {{ getPlaceStatusLabel(selectedPlace) }}
+  </span>
+          </div>
+
+          <p class="subtitle">{{ selectedPlace.description }}</p>
+
+          <mat-divider></mat-divider>
+
+          <div class="story-container">
+            <h3>📖 La Historia</h3>
+            <p class="story-text">
+              {{ selectedPlace.story }}
+            </p>
+          </div>
+
+          <div class="photo-album-section">
+            <div class="album-header">
+              <h3>📸 Recuerdos del lugar</h3>
+              <span class="album-count">{{ getSelectedPlacePhotoCount() }} fotos</span>
+            </div>
+
+            <div class="photo-actions">
+
+              <!-- BOTÓN HACER FOTO -->
+              <button class="photo-upload-btn" (click)="cameraInput.click()">
+                <mat-icon>photo_camera</mat-icon>
+                Hacer foto
+              </button>
+
+              <!-- BOTÓN GALERÍA -->
+              <button class="photo-upload-btn secondary" (click)="galleryInput.click()">
+                <mat-icon>photo_library</mat-icon>
+                Galería
+              </button>
+
+            </div>
+
+            <!-- INPUT CÁMARA -->
+            <input
+              #cameraInput
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              (change)="onPlacePhotoSelected($event)"
+            />
+
+            <!-- INPUT GALERÍA -->
+            <input
+              #galleryInput
+              type="file"
+              accept="image/*"
+              hidden
+              (change)="onPlacePhotoSelected($event)"
+            />
+
+            <div class="photo-album-grid" *ngIf="selectedPlacePhotos.length > 0; else noPhotosYet">
+              <div class="photo-item" *ngFor="let photo of selectedPlacePhotos; let i = index">
+                <img
+                  [src]="photo.url"
+                  alt="Foto del lugar"
+                  (click)="openPhotoViewer(photo)"
+                >
+
+                <button
+                  class="delete-photo-btn"
+                  (click)="removePlacePhoto(i); $event.stopPropagation()"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <ng-template #noPhotosYet>
+              <p class="no-photos-text">Todavía no hay fotos guardadas de este sitio.</p>
+            </ng-template>
+          </div>
+        </div>
+
+      </mat-card>
+    </div>
+  }
+
+  @if (showPhotoViewer && selectedPhotoView) {
+    <div class="photo-viewer-overlay" (click)="closePhotoViewer()">
+      <mat-card class="photo-viewer-card" (click)="$event.stopPropagation()">
+
+        <button class="photo-viewer-close" (click)="closePhotoViewer()">
+          <mat-icon>close</mat-icon>
+        </button>
+
+        <button
+          class="photo-nav-btn left"
+          *ngIf="selectedPlacePhotos.length > 1"
+          (click)="showPreviousPhoto()"
+        >
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+
+        <img
+          [src]="selectedPhotoView"
+          alt="Foto ampliada"
+          class="photo-viewer-image"
+        >
+
+        <button
+          class="photo-nav-btn right"
+          *ngIf="selectedPlacePhotos.length > 1"
+          (click)="showNextPhoto()"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+
+        <div class="photo-counter" *ngIf="selectedPlacePhotos.length > 1">
+          {{ selectedPhotoIndex + 1 }} / {{ selectedPlacePhotos.length }}
+        </div>
+
+      </mat-card>
+    </div>
+  }
+
+</div>

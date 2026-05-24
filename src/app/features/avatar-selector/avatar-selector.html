@@ -1,0 +1,27 @@
+<div class="container">
+  <h2 class="title">Elige tu avatar</h2>
+  <p class="subtitle">Así quedarás registrada en el recorrido.</p>
+
+  <div class="avatar-grid">
+    @for (avatar of avatars; track avatar.id) {
+      <mat-card
+        class="avatar-card"
+        [class.selected]="selectedAvatarId === avatar.id"
+        (click)="selectAvatar(avatar.id)"
+      >
+        <img [src]="avatar.imageUrl" [alt]="avatar.name">
+        <div class="avatar-name">{{ avatar.name }}</div>
+      </mat-card>
+    }
+  </div>
+
+  <button
+    mat-flat-button
+    color="primary"
+    class="confirm-btn"
+    [disabled]="!selectedAvatarId"
+    (click)="confirmAvatar()"
+  >
+    Confirmar avatar
+  </button>
+</div>

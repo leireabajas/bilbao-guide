@@ -1,0 +1,94 @@
+<section class="home-page">
+
+  <mat-card class="hero-card">
+    <div class="hero-image">
+      <img src="/assets/images/opening-bilbao.jpg" alt="Bilbao">
+
+      <div class="hero-overlay">
+        <div class="hero-top">
+          <div>
+            <span class="kicker">Bilbao Guide</span>
+            <h1>Ongi etorri, {{ userName }} ✨</h1>
+            <p>{{ welcomeMessage }}</p>
+          </div>
+
+          <div class="avatar-badge">
+            <img [src]="avatarUrl" alt="Avatar">
+          </div>
+        </div>
+      </div>
+    </div>
+  </mat-card>
+
+  <mat-card class="progress-card">
+    <div class="progress-header">
+      <div>
+        <span class="kicker">Tu avance</span>
+        <h2>{{ completedChallenges }} / {{ totalChallenges }} retos completados</h2>
+      </div>
+
+      <span class="progress-pill">{{ progressPercentage }}%</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="progressPercentage"></div>
+    </div>
+
+    <p class="progress-note">
+      Cada reto, lugar y recompensa hace que el viaje se sienta más tuyo.
+    </p>
+  </mat-card>
+
+  <section class="stats-grid">
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-icon">🗺️</div>
+        <div class="stat-value">{{ visitedPlaces }}</div>
+        <div class="stat-label">Lugares desbloqueados</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-icon">🏆</div>
+        <div class="stat-value">{{ completedChallenges }}</div>
+        <div class="stat-label">Retos completados</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-icon">🎟️</div>
+        <div class="stat-value">{{ unlockedRewards }}</div>
+        <div class="stat-label">Vales visibles</div>
+      </mat-card-content>
+    </mat-card>
+  </section>
+
+  <section class="quick-actions">
+    <a mat-card class="action-card" routerLink="/places">
+      <div class="action-icon">📍</div>
+      <div>
+        <h3>Explorar mapa</h3>
+        <p>Descubre sitios desbloqueables y sigue el recorrido.</p>
+      </div>
+    </a>
+
+    <a mat-card class="action-card" routerLink="/passport">
+      <div class="action-icon">📘</div>
+      <div>
+        <h3>Ver pasaporte</h3>
+        <p>Consulta retos, progreso, niveles y recompensas.</p>
+      </div>
+    </a>
+
+    <a mat-card class="action-card" routerLink="/itinerary">
+      <div class="action-icon">🧭</div>
+      <div>
+        <h3>Seguir itinerario</h3>
+        <p>Repasa el plan del viaje y lo que queda por vivir.</p>
+      </div>
+    </a>
+  </section>
+
+</section>

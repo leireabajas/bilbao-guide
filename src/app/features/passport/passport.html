@@ -1,0 +1,561 @@
+<section class="passport-page">
+
+  <!-- HEADER -->
+  <header class="passport-header">
+    <div>
+      <h1>Pasaporte del viaje</h1>
+      <p>Cada paso queda registrado.</p>
+    </div>
+  </header>
+
+  <!-- RESUMEN -->
+  <section class="summary-card">
+    <span class="label">Estado actual</span>
+    <h2>{{ completedRecords }} registros completados</h2>
+    <p>{{ summaryMessage }}</p>
+  </section>
+
+  <!-- PROGRESO -->
+  <section class="progress-card">
+    <h3>Progreso</h3>
+
+    <div class="bar">
+      <div class="fill" [style.width.%]="progressPercentage"></div>
+    </div>
+
+    <div class="stats">
+      <div>
+        <span>Lugares</span>
+        <strong>{{ visitedPlaces }}/{{ totalPlaces }}</strong>
+      </div>
+
+      <div>
+        <span>Retos</span>
+        <strong>{{ completedChallenges }}/{{ totalChallenges }}</strong>
+      </div>
+
+      <div>
+        <span>Recompensas</span>
+        <strong>{{ rewardsUnlocked }}</strong>
+      </div>
+    </div>
+
+    <p class="note">Todo lo importante permanece aquí.</p>
+  </section>
+
+  <!-- LUGARES REGISTRADOS -->
+  <section class="section">
+    <div class="places-toggle-card" (click)="toggleSection('places')">
+      <div class="places-toggle-text">
+        <h3>Lugares registrados</h3>
+        <p>
+          {{ visitedPlacesList.length }}
+          {{ visitedPlacesList.length === 1
+          ? 'lugar ya vinculado al recorrido.'
+          : 'lugares ya vinculados al recorrido.' }}
+        </p>
+      </div>
+
+      <span class="places-toggle-icon" [class.open]="isSectionOpen('places')">
+        ▾
+      </span>
+    </div>
+
+    <div class="places-compact-list" *ngIf="isSectionOpen('places')">
+      <div class="place-row" *ngFor="let place of visitedPlacesList">
+        <span class="place-name">{{ getPlaceLabel(place) }}</span>
+        <span class="badge compact-badge">Registrado</span>
+      </div>
+    </div>
+
+    <div class="empty-state" *ngIf="isSectionOpen('places') && visitedPlacesList.length === 0">
+      <p>Todavía no hay lugares registrados.</p>
+      <small>Cuando desbloquees sitios en el mapa, aparecerán aquí.</small>
+    </div>
+  </section>
+
+  <!-- RETOS OBLIGATORIOS -->
+  <section class="section">
+    <div class="section-toggle-card" (click)="toggleSection('mandatory')">
+      <div class="section-toggle-text">
+        <h3>Retos que forman parte del recorrido</h3>
+        <p>Pequeños momentos que no conviene dejar pasar.</p>
+      </div>
+
+      <span class="section-toggle-icon" [class.open]="isSectionOpen('mandatory')">
+        ▾
+      </span>
+    </div>
+
+    <div class="list" *ngIf="isSectionOpen('mandatory')">
+      <div
+        class="card"
+        *ngFor="let c of mandatoryChallenges"
+        [ngClass]="c.status"
+      >
+        <div>
+          <h4>{{ c.title }}</h4>
+          <p>{{ c.description }}</p>
+        </div>
+
+        <div class="card-side">
+          <span class="badge">{{ getStatusLabel(c.status) }}</span>
+
+          <button
+            class="challenge-action"
+            *ngIf="c.status !== 'completed' && !hasPendingRequest(c.id)"
+            (click)="requestChallengeApproval(c); $event.stopPropagation()"
+          >
+            Solicitar registro
+          </button>
+
+          <span
+            class="pending-request-label"
+            *ngIf="c.status !== 'completed' && hasPendingRequest(c.id)"
+          >
+            Pendiente de confirmación
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RETOS OPCIONALES -->
+  <section class="section">
+    <div class="section-toggle-card" (click)="toggleSection('optional')">
+      <div class="section-toggle-text">
+        <h3>Retos opcionales</h3>
+        <p>Desvíos pequeños. Recompensas reales. Ninguno sobra.</p>
+      </div>
+
+      <span class="section-toggle-icon" [class.open]="isSectionOpen('optional')">
+      ▾
+    </span>
+    </div>
+
+    <div class="list" *ngIf="isSectionOpen('optional')">
+      <div
+        class="card optional"
+        *ngFor="let c of optionalChallenges"
+        [ngClass]="c.status"
+      >
+        <div>
+          <small class="reward" *ngIf="c.rewardLabel">{{ c.rewardLabel }}</small>
+          <h4>{{ c.title }}</h4>
+          <p>{{ c.description }}</p>
+        </div>
+
+        <div class="card-side">
+          <span class="badge">{{ getStatusLabel(c.status) }}</span>
+
+          <button
+            class="challenge-action"
+            *ngIf="c.status !== 'completed' && !hasPendingRequest(c.id)"
+            (click)="requestChallengeApproval(c)"
+          >
+            Solicitar registro
+          </button>
+
+          <span
+            class="pending-request-label"
+            *ngIf="c.status !== 'completed' && hasPendingRequest(c.id)"
+          >
+            Pendiente de confirmación
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ BILBAO -->
+  <section class="section">
+    <div class="section-toggle-card" (click)="toggleSection('quiz')">
+      <div class="section-toggle-text">
+        <h3>Curiosidades de Bilbao</h3>
+        <p>Pequeñas preguntas sobre la ciudad. Algunas dejan premio.</p>
+      </div>
+
+      <span class="section-toggle-icon" [class.open]="isSectionOpen('quiz')">
+      ▾
+    </span>
+    </div>
+
+    <div *ngIf="isSectionOpen('quiz')">
+
+      <div class="euskera-levels bilbao-levels">
+
+        <div
+          class="euskera-level-card bilbao-level-card"
+          [class.locked-level]="!isBilbaoLevel1Unlocked"
+          (click)="openBilbaoLevel(1)"
+        >
+          <h4>Nivel 1 · Fácil</h4>
+          <p>Los símbolos más conocidos de Bilbao.</p>
+          <strong>
+            {{ completedBilbaoLevel1 }}/{{ bilbaoLevel1Challenges.length }} completados
+          </strong>
+        </div>
+
+        <div
+          class="euskera-level-card bilbao-level-card"
+          [class.locked-level]="!isBilbaoLevel2Unlocked"
+          (click)="openBilbaoLevel(2)"
+        >
+          <h4>
+            Nivel 2 · Ciudad
+            <span *ngIf="!isBilbaoLevel2Unlocked">🔒</span>
+          </h4>
+          <p>Historias y detalles algo más concretos.</p>
+          <strong *ngIf="isBilbaoLevel2Unlocked">
+            {{ completedBilbaoLevel2 }}/{{ bilbaoLevel2Challenges.length }} completados
+          </strong>
+          <small *ngIf="!isBilbaoLevel2Unlocked">
+            Completa el nivel 1 para desbloquearlo.
+          </small>
+        </div>
+
+        <div
+          class="euskera-level-card bilbao-level-card"
+          [class.locked-level]="!isBilbaoLevel3Unlocked"
+          (click)="openBilbaoLevel(3)"
+        >
+          <h4>
+            Nivel 3 · Curiosidades
+            <span *ngIf="!isBilbaoLevel3Unlocked">🔒</span>
+          </h4>
+          <p>Detalles más específicos y menos obvios.</p>
+          <strong *ngIf="isBilbaoLevel3Unlocked">
+            {{ completedBilbaoLevel3 }}/{{ bilbaoLevel3Challenges.length }} completados
+          </strong>
+          <small *ngIf="!isBilbaoLevel3Unlocked">
+            Completa el nivel 2 para desbloquearlo.
+          </small>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- EUSKERA -->
+  <section class="section">
+    <div class="section-toggle-card duolingo-card" (click)="toggleSection('euskera')">
+      <div class="section-toggle-text duolingo-text">
+        <h3>
+          <span class="duo-dot"></span>
+          Duolingo Euskera
+        </h3>
+        <p>Aprende palabras mientras avanzas en el viaje</p>
+      </div>
+
+      <span class="section-toggle-icon" [class.open]="isSectionOpen('euskera')">
+      ▾
+    </span>
+    </div>
+
+    <div *ngIf="isSectionOpen('euskera')">
+
+      <!-- 🔥 NIVELES -->
+      <div class="euskera-levels">
+
+        <div
+          class="euskera-level-card"
+          [class.locked-level]="!isLevel1Unlocked"
+          (click)="openEuskeraLevel(1)"
+        >
+          <h4>Nivel 1 · Básico</h4>
+          <p>Saludos y vocabulario inicial.</p>
+          <strong>
+            {{ completedEuskeraLevel1 }}/{{ euskeraLevel1Challenges.length }} completados
+          </strong>
+        </div>
+
+        <div
+          class="euskera-level-card"
+          [class.locked-level]="!isLevel2Unlocked"
+          (click)="openEuskeraLevel(2)"
+        >
+          <h4>
+            Nivel 2 · Ciudad
+            <span *ngIf="!isLevel2Unlocked">🔒</span>
+          </h4>
+          <p>Palabras útiles para moverte por Bilbao.</p>
+
+          <strong *ngIf="isLevel2Unlocked">
+            {{ completedEuskeraLevel2 }}/{{ euskeraLevel2Challenges.length }} completados
+          </strong>
+
+          <small *ngIf="!isLevel2Unlocked">
+            Completa el nivel 1 para desbloquearlo.
+          </small>
+        </div>
+
+        <div
+          class="euskera-level-card"
+          [class.locked-level]="!isLevel3Unlocked"
+          (click)="openEuskeraLevel(3)"
+        >
+          <h4>
+            Nivel 3 · Viaje real
+            <span *ngIf="!isLevel3Unlocked">🔒</span>
+          </h4>
+          <p>Situaciones reales del viaje.</p>
+
+          <strong *ngIf="isLevel3Unlocked">
+            {{ completedEuskeraLevel3 }}/{{ euskeraLevel3Challenges.length }} completados
+          </strong>
+
+          <small *ngIf="!isLevel3Unlocked">
+            Completa el nivel 2 para desbloquearlo.
+          </small>
+        </div>
+
+      </div>
+
+
+
+    </div>
+  </section>
+
+  <div class="history-block" *ngIf="completedEuskeraHistory.length > 0">
+
+    <!-- CABECERA DESPLEGABLE -->
+    <div class="history-header" (click)="toggleCompletedEuskera()">
+      <h4>Retos completados</h4>
+
+      <span class="toggle-icon" [class.open]="showCompletedEuskera">
+      ▾
+    </span>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div class="history-list" *ngIf="showCompletedEuskera">
+      <div class="history-item" *ngFor="let completed of completedEuskeraHistory">
+        <div>
+          <strong>{{ completed.title }}</strong>
+          <p>{{ completed.description }}</p>
+        </div>
+
+        <button
+          class="challenge-action secondary"
+          (click)="openEuskeraQuiz(completed)"
+        >
+          Volver a practicar
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL QUIZ EUSKERA -->
+  <div class="quiz-modal-backdrop" *ngIf="showEuskeraQuiz">
+    <div class="quiz-modal">
+      <button class="quiz-close" (click)="closeEuskeraQuiz()">✕</button>
+
+      <ng-container *ngIf="!euskeraQuizCompleted; else euskeraFinished">
+        <div class="quiz-progress-top">
+        <span>
+          {{ currentEuskeraQuestionIndex + 1 }}/{{ euskeraQuestions.length }}
+        </span>
+
+          <div class="quiz-progress-bar">
+            <div
+              class="quiz-progress-fill"
+              [style.width.%]="euskeraProgressPercentage"
+            ></div>
+          </div>
+        </div>
+
+        <ng-container *ngIf="currentEuskeraQuestion as question; else noEuskeraQuestions">
+          <div class="quiz-question-block">
+            <h4>{{ question.question }}</h4>
+            <p>Elige una opción. No hay penalización por fallar.</p>
+          </div>
+
+          <div class="quiz-options">
+            <button
+              class="quiz-option"
+              *ngFor="let option of question.options"
+              [class.selected]="selectedEuskeraAnswer === option"
+              [class.correct]="showEuskeraFeedback && option === question.options[question.correctIndex]"
+              [class.wrong]="showEuskeraFeedback && selectedEuskeraAnswer === option && option !== question.options[question.correctIndex]"
+              [disabled]="showEuskeraFeedback && isEuskeraAnswerCorrect"
+              (click)="selectEuskeraAnswer(option)"
+            >
+              {{ option }}
+            </button>
+          </div>
+
+          <div class="quiz-feedback" *ngIf="showEuskeraFeedback && selectedEuskeraChallenge as activeChallenge">
+            <p *ngIf="isEuskeraAnswerCorrect" class="feedback-correct">
+              Bien visto. Esta ya empieza a sonar familiar.
+            </p>
+
+            <p *ngIf="!isEuskeraAnswerCorrect" class="feedback-soft">
+              Casi. Esta palabra guarda otro significado, pero la recompensa permanece igualmente.
+            </p>
+
+            <button
+              class="quiz-next-btn"
+              *ngIf="isEuskeraAnswerCorrect"
+              (click)="goToNextEuskeraStep()"
+            >
+              Continuar
+            </button>
+          </div>
+        </ng-container>
+
+        <ng-template #noEuskeraQuestions>
+          <div class="empty-state">
+            <p>Este reto todavía no tiene preguntas configuradas.</p>
+            <small>Revisa el euskeraQuiz del reto seleccionado.</small>
+          </div>
+        </ng-template>
+      </ng-container>
+      <ng-template #euskeraFinished>
+        <div class="quiz-finished">
+          <h4>Reto completado</h4>
+          <p>Has terminado esta lección de euskera.</p>
+          <button class="quiz-next-btn" (click)="closeEuskeraQuiz()">
+            Cerrar
+          </button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+
+
+  <!-- MODAL QUIZ BILBAO -->
+  <div class="quiz-modal-backdrop" *ngIf="showBilbaoQuiz">
+    <div class="quiz-modal">
+      <button class="quiz-close" (click)="closeBilbaoQuiz()">✕</button>
+
+      <ng-container *ngIf="!bilbaoQuizCompleted; else bilbaoFinished">
+        <div class="quiz-question-block" *ngIf="currentBilbaoQuiz">
+          <h4>{{ currentBilbaoQuiz.question }}</h4>
+          <p>Elige una opción. No hay penalización por fallar.</p>
+        </div>
+
+        <div class="quiz-options" *ngIf="currentBilbaoQuiz">
+          <button
+            class="quiz-option"
+            *ngFor="let option of currentBilbaoQuiz.options; let i = index"
+            [class.selected]="selectedBilbaoAnswerIndex === i"
+            [disabled]="showBilbaoFeedback"
+            (click)="selectBilbaoAnswer(i)"
+          >
+            {{ option }}
+          </button>
+        </div>
+
+        <div class="quiz-feedback" *ngIf="showBilbaoFeedback && currentBilbaoQuiz">
+          <p *ngIf="isBilbaoAnswerCorrect" class="feedback-correct">
+            {{ currentBilbaoQuiz.successMsg }}
+          </p>
+
+          <p *ngIf="!isBilbaoAnswerCorrect" class="feedback-soft">
+            {{ currentBilbaoQuiz.failMsg }}
+          </p>
+
+          <button class="quiz-next-btn" (click)="completeBilbaoQuiz()">
+            Continuar
+          </button>
+        </div>
+      </ng-container>
+
+      <ng-template #bilbaoFinished>
+        <div class="quiz-finished bilbao-finished">
+          <h4>Curiosidad completada</h4>
+          <p>Ya has terminado esta pequeña lección sobre Bilbao.</p>
+          <button class="quiz-next-btn" (click)="closeBilbaoQuiz()">
+            Cerrar
+          </button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+
+
+  <!-- RECOMPENSAS -->
+  <section class="section">
+    <div class="section-toggle-card" (click)="toggleSection('rewards')">
+      <div class="section-toggle-text">
+        <h3>Vales Conseguidos</h3>
+        <p class="sub">Detalles reservados para el camino.</p>
+      </div>
+
+      <span class="section-toggle-icon" [class.open]="isSectionOpen('rewards')">
+      ▾
+    </span>
+    </div>
+
+    <div *ngIf="isSectionOpen('rewards')">
+      <div class="list" *ngIf="visibleRewards.length > 0; else noRewardsYet">
+        <div
+          class="card reward-card"
+          *ngFor="let r of visibleRewards"
+          [ngClass]="r.status"
+        >
+          <div>
+            <h4>{{ r.title }}</h4>
+            <p>{{ r.description }}</p>
+          </div>
+
+          <div class="card-side">
+            <span class="badge">{{ getRewardStatusLabel(r.status) }}</span>
+
+            <button
+              class="challenge-action"
+              *ngIf="r.status === 'available'"
+              (click)="requestRewardClaim(r.id)"
+            >
+              Solicitar recompensa
+            </button>
+
+            <span
+              class="pending-request-label"
+              *ngIf="r.status === 'pending' || hasPendingRewardRequest(r.id)"
+            >
+            Pendiente de validación
+          </span>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #noRewardsYet>
+        <div class="empty-state">
+          <p>Todavía no hay recompensas visibles.</p>
+          <small>Cuando completes pruebas especiales, aparecerán aquí.</small>
+        </div>
+      </ng-template>
+    </div>
+  </section>
+
+  <!-- MODAL RECOMPENSA USADA -->
+  <div class="quiz-modal-backdrop reward-backdrop" *ngIf="showRewardMessage">
+    <div class="quiz-modal reward-modal">
+      <div class="reward-unlock-content">
+        <div class="reward-icon-wrap">
+          <div class="reward-icon">🎁</div>
+        </div>
+
+        <span class="reward-kicker">Nueva recompensa</span>
+
+        <h4>{{ rewardMessageTitle }}</h4>
+
+        <p class="reward-message-text">{{ rewardMessageText }}</p>
+
+        <button class="reward-close-btn" (click)="closeRewardMessage()">
+          Seguir
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    Lo vivido permanece aquí.
+  </footer>
+
+</section>

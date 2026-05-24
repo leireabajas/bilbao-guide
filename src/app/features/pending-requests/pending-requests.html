@@ -1,0 +1,216 @@
+<section class="pending-page">
+  <header class="pending-header">
+    <div>
+      <h1>Solicitudes de registro</h1>
+      <p>Acciones que esperan confirmación o ya han quedado validadas.</p>
+    </div>
+
+    <div class="avatar" *ngIf="selectedAvatar">
+      <img [src]="selectedAvatar" alt="Avatar seleccionado" />
+    </div>
+  </header>
+
+  <section class="pending-summary">
+    <span class="label">Estado actual</span>
+    <h2>
+      {{ pendingRequests.length + pendingRewardRequests.length }} pendientes ·
+      {{ acceptedRequests.length + acceptedRewardRequests.length }} aceptadas
+    </h2>
+    <p>Aquí queda constancia de lo que sigue en revisión y de lo ya validado.</p>
+  </section>
+
+  <!-- PENDIENTES DE RETOS -->
+  <section class="requests-section">
+    <h3>Pendientes de confirmación</h3>
+    <p class="section-sub">Solicitudes de retos que todavía esperan tu visto bueno.</p>
+
+    <div *ngIf="pendingRequests.length > 0; else noPending" class="requests-list">
+      <article class="request-card" *ngFor="let req of pendingRequests">
+        <div class="request-top">
+          <div class="request-info">
+            <h3>{{ req.title }}</h3>
+            <p>Solicitud enviada recientemente</p>
+          </div>
+
+          <span class="badge type-badge">{{ getTypeLabel(req.type) }}</span>
+        </div>
+
+        <div class="request-status-line">
+          <span class="badge pending-badge">Pendiente de confirmación</span>
+        </div>
+
+        <div class="request-actions">
+          <button class="accept-btn" (click)="acceptRequest(req.id)">
+            Aceptar registro
+          </button>
+
+          <button class="delete-btn" (click)="resetChallengeRequest(req.id)">
+            Reiniciar reto
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #noPending>
+      <div class="empty-state">
+        <p>No hay solicitudes pendientes</p>
+        <small>Todo lo reciente ya ha sido revisado.</small>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- RECOMPENSAS PENDIENTES -->
+  <section class="requests-section">
+    <h3>Solicitudes de recompensa</h3>
+    <p class="section-sub">Recompensas pedidas que esperan validación.</p>
+
+    <div *ngIf="pendingRewardRequests.length > 0; else noPendingRewards" class="requests-list">
+      <article class="request-card" *ngFor="let req of pendingRewardRequests">
+        <div class="request-top">
+          <div class="request-info">
+            <h3>{{ req.title }}</h3>
+            <p>Solicitud de recompensa enviada recientemente</p>
+          </div>
+
+          <span class="badge type-badge">Recompensa</span>
+        </div>
+
+        <div class="request-status-line">
+          <span class="badge pending-badge">Pendiente de validación</span>
+        </div>
+
+        <div class="request-actions">
+          <button class="accept-btn" (click)="acceptRewardRequest(req.id)">
+            Aceptar recompensa
+          </button>
+
+          <button class="undo-btn" (click)="deleteRewardRequest(req.id)">
+            Borrar solicitud
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #noPendingRewards>
+      <div class="empty-state">
+        <p>No hay solicitudes de recompensa pendientes</p>
+        <small>Cuando se solicite una recompensa, aparecerá aquí.</small>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- ACEPTADAS DE RETOS -->
+  <section class="requests-section accepted-section">
+    <h3>Aceptadas y registradas</h3>
+    <p class="section-sub">Solicitudes de retos que ya recibieron confirmación.</p>
+
+    <div *ngIf="acceptedRequests.length > 0; else noAccepted" class="requests-list">
+      <article class="request-card accepted-card" *ngFor="let req of acceptedRequests">
+        <div class="request-top">
+          <div class="request-info">
+            <h3>{{ req.title }}</h3>
+            <p>La validación ya ha quedado registrada</p>
+          </div>
+
+          <span class="badge type-badge">{{ getTypeLabel(req.type) }}</span>
+        </div>
+
+        <div class="request-status-line">
+          <span class="badge accepted-badge">Aceptada y registrada</span>
+        </div>
+
+        <div class="request-actions">
+          <button class="undo-btn" (click)="undoAcceptRequest(req.id)">
+            Volver a pendiente
+          </button>
+
+          <button class="delete-btn" (click)="resetChallengeRequest(req.id)">
+            Reiniciar reto
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #noAccepted>
+      <div class="empty-state">
+        <p>Todavía no hay solicitudes aceptadas</p>
+        <small>Cuando confirmes registros, aparecerán aquí.</small>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- RECOMPENSAS ACEPTADAS -->
+  <section class="requests-section accepted-section">
+    <h3>Recompensas aceptadas</h3>
+    <p class="section-sub">Recompensas ya validadas por administración.</p>
+
+    <div *ngIf="acceptedRewardRequests.length > 0; else noAcceptedRewards" class="requests-list">
+      <article class="request-card accepted-card" *ngFor="let req of acceptedRewardRequests">
+        <div class="request-top">
+          <div class="request-info">
+            <h3>{{ req.title }}</h3>
+            <p>La recompensa ya ha quedado validada</p>
+          </div>
+
+          <span class="badge type-badge">Recompensa</span>
+        </div>
+
+        <div class="request-status-line">
+          <span class="badge accepted-badge">Aceptada</span>
+        </div>
+
+        <div class="request-actions">
+          <button class="undo-btn" (click)="undoAcceptRewardRequest(req.id)">
+            Deshacer aceptación
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #noAcceptedRewards>
+      <div class="empty-state">
+        <p>Todavía no hay recompensas aceptadas</p>
+        <small>Cuando valides una recompensa, aparecerá aquí.</small>
+      </div>
+    </ng-template>
+  </section>
+
+  <section class="requests-section admin-tools-section">
+    <h3>Herramientas de administración</h3>
+    <p class="section-sub">Acciones rápidas para reiniciar partes de la app.</p>
+
+    <div class="admin-tools-grid">
+      <button class="danger-btn" (click)="resetAllData()">
+        Reiniciar todo
+      </button>
+
+      <button class="tool-btn" (click)="resetChallengesData()">
+        Reiniciar retos
+      </button>
+
+      <button class="tool-btn" (click)="resetRewardsData()">
+        Reiniciar recompensas
+      </button>
+
+      <button class="tool-btn" (click)="resetPlacesData()">
+        Reiniciar lugares
+      </button>
+
+      <button class="tool-btn" (click)="resetPlacePhotos()">
+        Borrar álbumes de fotos
+      </button>
+
+      <button class="tool-btn" (click)="resetAvatar()">
+        Reiniciar avatar
+      </button>
+
+      <button class="tool-btn" (click)="resetAdminMode()">
+        Desactivar modo admin
+      </button>
+    </div>
+  </section>
+
+  <footer class="pending-footer">
+    Nada queda sin revisar.
+  </footer>
+</section>
