@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef  } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CHALLENGES } from '../../core/data/challenges.data';
 import { ProfileService } from '../../core/services/profile.service';
@@ -7,7 +7,8 @@ import { RewardService } from '../../core/services/reward.service';
 import {
   ChallengeService,
   ChallengeItem,
-  ChallengeStatus
+  ChallengeStatus,
+  PendingRequest
 } from '../../core/services/challenge.service';
 
 import {
@@ -97,7 +98,8 @@ export class PassportComponent implements OnInit {
   constructor(
     private profileService: ProfileService,
     private challengeService: ChallengeService,
-    private rewardService: RewardService
+    private rewardService: RewardService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -105,18 +107,27 @@ export class PassportComponent implements OnInit {
 
     this.loadVisitedPlaces();
 
-    const storedChallenges = this.challengeService.getChallenges();
+    this.rewards = this.rewardService.getRewards();
+
+    void this.loadInitialChallenges();
+    void this.loadPendingChallengeRequests();
+  }
+
+  private async loadInitialChallenges(): Promise<void> {
+    const storedChallenges = await this.challengeService.getChallenges();
 
     if (storedChallenges.length > 0) {
       this.challenges = storedChallenges;
     } else {
-      this.saveChallenges();
+      this.challenges = CHALLENGES.map(challenge => ({ ...challenge }));
+      await this.saveChallenges();
     }
 
-    this.rewards = this.rewardService.getRewards();
     this.loadCompletedEuskeraHistory();
     this.pickCurrentEuskeraChallenge();
     this.loadEuskeraProgress();
+
+    this.cdr.detectChanges();
   }
 // ===== SOLICITUDES DE RECOMPENSA =====
   private saveEuskeraHistory(challenge: ChallengeItem): void {
@@ -146,10 +157,8 @@ export class PassportComponent implements OnInit {
   }
 
   private loadCompletedEuskeraHistory(): void {
-    const ids = this.getEuskeraHistoryIds();
-
-    this.completedEuskeraHistory = this.euskeraChallenges.filter(c =>
-      ids.includes(c.id)
+    this.completedEuskeraHistory = this.challenges.filter(
+      c => c.status === 'completed'
     );
   }
 
@@ -327,11 +336,16 @@ export class PassportComponent implements OnInit {
     this.showCompletedEuskera = !this.showCompletedEuskera;
   }
 
-  resetEuskeraChallenge(challenge: ChallengeItem): void {
-    this.challengeService.resetChallenge(challenge.id);
-    this.loadChallenges();
-    this.pickCurrentEuskeraChallenge();
+  async resetEuskeraChallenge(
+    challenge: ChallengeItem
+  ): Promise<void> {
+
+    await this.challengeService.resetChallenge(challenge.id);
+
+    await this.loadChallenges();
+
     localStorage.removeItem('currentEuskeraChallengeId');
+
     this.pickCurrentEuskeraChallenge();
   }
 
@@ -524,7 +538,9 @@ export class PassportComponent implements OnInit {
   // ===== GETTERS DE RESUMEN =====
 
   get completedChallenges(): number {
-    return this.challenges.filter(challenge => challenge.status === 'completed').length;
+    return this.challenges.filter(
+      challenge => challenge.status === 'completed'
+    ).length;
   }
 
   get totalChallenges(): number {
@@ -613,7 +629,17 @@ export class PassportComponent implements OnInit {
     if (status === 'used') return 'Reclamada';
     return 'Bloqueado';
   }
+  pendingChallengeRequests: PendingRequest[] = [];
 
+  private async loadPendingChallengeRequests(): Promise<void> {
+    this.pendingChallengeRequests =
+      await this.challengeService.getPendingRequests();
+
+    console.log(
+      'SOLICITUDES CARGADAS:',
+      this.pendingChallengeRequests
+    );
+  }
   // ===== SOLICITUDES =====
   currentEuskeraChallenge: ChallengeItem | null = null;
 
@@ -630,31 +656,41 @@ export class PassportComponent implements OnInit {
     this.currentEuskeraChallenge = available[0];
   }
 
-  requestChallengeApproval(challenge: ChallengeItem): void {
-    // Delegamos en el servicio
-    this.challengeService.createPendingRequest(challenge);
+  async requestChallengeApproval(
+    challenge: ChallengeItem
+  ): Promise<void> {
+
+    console.log('BOTÓN SOLICITAR PULSADO');
+
+    await this.challengeService.createPendingRequest(challenge);
+
+    await this.loadPendingChallengeRequests();
   }
 
   hasPendingRequest(challengeId: string): boolean {
-    // El servicio comprueba si ya existe una solicitud pendiente
-    return this.challengeService.hasPendingRequest(challengeId);
+    return this.pendingChallengeRequests.some(
+      request =>
+        request.challengeId === challengeId &&
+        request.status === 'pending'
+    );
   }
 
   // ===== GUARDADO RETOS =====
 
-  private saveChallenges(): void {
-    // Guardamos la lista actual de retos
-    this.challengeService.saveChallenges(this.challenges);
+  private async saveChallenges(): Promise<void> {
+    await this.challengeService.saveChallenges(this.challenges);
   }
 
-  private loadChallenges(): void {
-    const storedChallenges = this.challengeService.getChallenges();
+  private async loadChallenges(): Promise<void> {
+    const storedChallenges = await this.challengeService.getChallenges();
 
-    // Solo sustituimos si ya había datos guardados
     if (storedChallenges.length > 0) {
       this.challenges = storedChallenges;
     }
+
+    this.cdr.detectChanges();
   }
+
 
   // ===== LUGARES =====
 
@@ -758,7 +794,7 @@ export class PassportComponent implements OnInit {
     return this.rewards.filter(r => r.status !== 'locked');
   }
 
-  goToNextEuskeraStep(): void {
+  async goToNextEuskeraStep(): Promise<void> {
     if (!this.showEuskeraFeedback || !this.selectedEuskeraChallenge) {
       return;
     }
@@ -772,8 +808,13 @@ export class PassportComponent implements OnInit {
       this.euskeraQuizCompleted = true;
       this.clearEuskeraProgress();
 
-      this.challengeService.updateChallengeStatus(challenge.id, 'completed');
-      this.loadChallenges();
+      await this.challengeService.updateChallengeStatus(
+        challenge.id,
+        'completed'
+      );
+
+      await this.loadChallenges();
+
       this.loadCompletedEuskeraHistory();
 
       if (challenge.level) {
@@ -818,7 +859,7 @@ export class PassportComponent implements OnInit {
     this.showBilbaoFeedback = true;
   }
 
-  completeBilbaoQuiz(): void {
+  async completeBilbaoQuiz(): Promise<void> {
     if (!this.selectedBilbaoChallenge) {
       return;
     }
@@ -827,8 +868,12 @@ export class PassportComponent implements OnInit {
 
     const challenge = this.selectedBilbaoChallenge;
 
-    this.challengeService.updateChallengeStatus(challenge.id, 'completed');
-    this.loadChallenges();
+    await this.challengeService.updateChallengeStatus(
+      challenge.id,
+      'completed'
+    );
+
+    await this.loadChallenges();
 
     if (challenge.level) {
       this.checkBilbaoLevelReward(challenge.level);
@@ -860,6 +905,12 @@ export class PassportComponent implements OnInit {
     this.openEuskeraQuiz(availableChallenge);
   }
 
+  getTypeLabel(type: ChallengeItem['type']): string {
+    if (type === 'mandatory') return 'Reto del recorrido';
+    if (type === 'optional') return 'Reto opcional';
+    if (type === 'quiz') return 'Curiosidad de Bilbao';
+    return 'Euskera';
+  }
 
 }
 

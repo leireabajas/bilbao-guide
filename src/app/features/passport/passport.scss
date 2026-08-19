@@ -931,3 +931,19 @@
 .bilbao-level-card strong {
   color: #8a6a1d;
 }
+.completed-type {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+.completed-registered {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f7d6e;
+  background: #e4efe8;
+  padding: 7px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}

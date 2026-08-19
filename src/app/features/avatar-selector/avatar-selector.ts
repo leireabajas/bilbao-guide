@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
+import { Subscription } from 'rxjs';
 
 import { AVATARS } from '../../core/data/avatars.data';
 import { AvatarOption } from '../../core/models/avatar.model';
@@ -15,23 +16,38 @@ import { ProfileService } from '../../core/services/profile.service';
   templateUrl: './avatar-selector.html',
   styleUrl: './avatar-selector.scss'
 })
-export class AvatarSelectorComponent {
+export class AvatarSelectorComponent implements OnDestroy {
   avatars: AvatarOption[] = AVATARS;
   selectedAvatarId: string | null = null;
+
+  private avatarSubscription?: Subscription;
 
   constructor(
     private profileService: ProfileService,
     private router: Router
-  ) {}
+  ) {
+    this.avatarSubscription = this.profileService.avatar$.subscribe(
+      avatarId => {
+        this.selectedAvatarId = avatarId;
+      }
+    );
+  }
 
   selectAvatar(id: string): void {
     this.selectedAvatarId = id;
   }
 
-  confirmAvatar(): void {
+  async confirmAvatar(): Promise<void> {
     if (!this.selectedAvatarId) return;
 
-    this.profileService.saveAvatar(this.selectedAvatarId);
+    await this.profileService.saveAvatar(
+      this.selectedAvatarId
+    );
+
     this.router.navigate(['/home']);
+  }
+
+  ngOnDestroy(): void {
+    this.avatarSubscription?.unsubscribe();
   }
 }

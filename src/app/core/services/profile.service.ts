@@ -1,37 +1,93 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { AVATARS } from '../data/avatars.data'; // lista de avatares disponibles
+import { AVATARS } from '../data/avatars.data';
+
+import {
+  Firestore,
+  doc,
+  getDoc,
+  setDoc
+} from '@angular/fire/firestore';
+import {AuthService} from './auth';
+
+
 
 @Injectable({
   providedIn: 'root'
 })
 export class ProfileService {
-  private readonly avatarKey = 'selectedAvatar';
+  private avatarSubject = new BehaviorSubject<string | null>(null);
 
-  // Guarda el id actual del avatar seleccionado
-  private avatarSubject = new BehaviorSubject<string | null>(this.getStoredAvatar());
   avatar$ = this.avatarSubject.asObservable();
 
-  saveAvatar(avatarId: string): void {
-    localStorage.setItem(this.avatarKey, avatarId);
+  constructor(
+    private firestore: Firestore,
+    private authService: AuthService
+  ) {
+    this.loadAvatar();
+  }
+
+  async saveAvatar(avatarId: string): Promise<void> {
+    const userId = await this.authService.getUserIdAsync();
+
+    const userRef = doc(
+      this.firestore,
+      `users/${userId}`
+    );
+
+    await setDoc(
+      userRef,
+      {
+        avatarId,
+        updatedAt: Date.now()
+      },
+      { merge: true }
+    );
+
     this.avatarSubject.next(avatarId);
   }
 
-  // Devuelve el ID guardado: 'harry', 'ron', etc.
+  async loadAvatar(): Promise<void> {
+    try {
+      const userId = await this.authService.getUserIdAsync();
+
+      const userRef = doc(
+        this.firestore,
+        `users/${userId}`
+      );
+
+      const snapshot = await getDoc(userRef);
+
+      if (!snapshot.exists()) {
+        this.avatarSubject.next(null);
+        return;
+      }
+
+      const data = snapshot.data();
+
+      this.avatarSubject.next(
+        data['avatarId'] ?? null
+      );
+
+    } catch (error) {
+      console.error('Error cargando avatar:', error);
+      this.avatarSubject.next(null);
+    }
+  }
+
   getAvatar(): string | null {
     return this.avatarSubject.value;
   }
 
-  // Devuelve directamente la URL de la imagen del avatar
   getAvatarUrl(): string {
     const avatarId = this.getAvatar();
-    const avatar = AVATARS.find(a => a.id === avatarId);
 
-    // Si no encuentra ninguno, usa uno por defecto
-    return avatar ? avatar.imageUrl : 'assets/avatars/Harry.png';
-  }
+    const avatar = AVATARS.find(
+      a => a.id === avatarId
+    );
 
-  private getStoredAvatar(): string | null {
-    return localStorage.getItem(this.avatarKey);
+    return avatar
+      ? avatar.imageUrl
+      : 'assets/avatars/Harry.png';
   }
 }

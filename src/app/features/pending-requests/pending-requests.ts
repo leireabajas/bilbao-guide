@@ -1,16 +1,18 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+
 import { ProfileService } from '../../core/services/profile.service';
 import { RewardService } from '../../core/services/reward.service';
 import { AdminService } from '../../core/services/admin.service';
+
 import {
   ChallengeService,
   PendingRequest,
   ChallengeType
 } from '../../core/services/challenge.service';
+
 import {
-  RewardClaimRequest,
-  RewardItem
+  RewardClaimRequest
 } from '../../core/data/rewards.data';
 
 @Component({
@@ -21,188 +23,302 @@ import {
   styleUrls: ['./pending-requests.scss']
 })
 export class PendingRequestsComponent implements OnInit {
-  // Avatar para mantener coherencia con el resto de pantallas
+
   selectedAvatar: string | null = null;
 
   // Solicitudes de retos
   requests: PendingRequest[] = [];
 
   // Solicitudes de recompensa
+  // Por ahora siguen usando RewardService/localStorage
   rewardRequests: RewardClaimRequest[] = [];
 
   constructor(
     private profileService: ProfileService,
     private challengeService: ChallengeService,
     private rewardService: RewardService,
-    private adminService: AdminService
+    private adminService: AdminService,
+    private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit(): void {
-    this.selectedAvatar = this.profileService.getAvatarUrl();
-    this.rewardRequests = this.rewardService.getRewardRequests();
-    this.loadRequests();
+  async ngOnInit(): Promise<void> {
+    this.selectedAvatar =
+      this.profileService.getAvatarUrl();
 
+    this.rewardRequests =
+      this.rewardService.getRewardRequests();
+
+    await this.loadRequests();
+
+    this.cdr.detectChanges();
   }
 
-  /**
-   * Solicitudes de retos pendientes.
-   */
+  // =========================================================
+  // GETTERS
+  // =========================================================
+
   get pendingRequests(): PendingRequest[] {
-    return this.requests.filter(request => request.status === 'pending');
+    return this.requests.filter(
+      request => request.status === 'pending'
+    );
   }
 
-  /**
-   * Solicitudes de retos aceptadas.
-   */
   get acceptedRequests(): PendingRequest[] {
-    return this.requests.filter(request => request.status === 'accepted');
+    return this.requests.filter(
+      request => request.status === 'accepted'
+    );
   }
 
-  /**
-   * Solicitudes de recompensa pendientes.
-   */
   get pendingRewardRequests(): RewardClaimRequest[] {
-    return this.rewardRequests.filter(request => request.status === 'pending');
+    return this.rewardRequests.filter(
+      request => request.status === 'pending'
+    );
   }
 
-  /**
-   * Solicitudes de recompensa aceptadas.
-   */
   get acceptedRewardRequests(): RewardClaimRequest[] {
-    return this.rewardRequests.filter(request => request.status === 'accepted');
+    return this.rewardRequests.filter(
+      request => request.status === 'accepted'
+    );
+  }
+
+  // =========================================================
+  // SOLICITUDES DE RETOS - FIREBASE
+  // =========================================================
+
+  private async loadRequests(): Promise<void> {
+    try {
+      this.requests =
+        await this.challengeService.getPendingRequests();
+
+      console.log(
+        'ADMIN: solicitudes recibidas:',
+        this.requests
+      );
+
+      this.cdr.detectChanges();
+
+    } catch (error) {
+      console.error(
+        'ADMIN: error cargando solicitudes:',
+        error
+      );
+
+      this.requests = [];
+
+      this.cdr.detectChanges();
+    }
   }
 
   /**
-   * Carga las solicitudes de retos desde localStorage.
+   * Acepta una solicitud:
+   * - solicitud -> accepted
+   * - reto -> completed
    */
-  private loadRequests(): void {
-    this.requests = this.challengeService.getPendingRequests();
+  async acceptRequest(
+    requestId: string
+  ): Promise<void> {
+
+    const request =
+      this.requests.find(
+        req => req.id === requestId
+      );
+
+    if (!request) {
+      return;
+    }
+
+    try {
+
+      await this.challengeService.updateRequestStatus(
+        requestId,
+        'accepted'
+      );
+
+      await this.challengeService.updateChallengeStatus(
+        request.challengeId,
+        'completed'
+      );
+
+      await this.loadRequests();
+
+    } catch (error) {
+
+      console.error(
+        'Error aceptando solicitud:',
+        error
+      );
+    }
   }
 
   /**
-   * Guarda las solicitudes de retos.
+   * Devuelve una solicitud aceptada a pending
+   * y el reto vuelve a available.
    */
-  private saveRequests(): void {
-    this.challengeService.savePendingRequests(this.requests);
+  async undoAcceptRequest(
+    requestId: string
+  ): Promise<void> {
+
+    const request =
+      this.requests.find(
+        req => req.id === requestId
+      );
+
+    if (!request) {
+      return;
+    }
+
+    try {
+
+      await this.challengeService.updateRequestStatus(
+        requestId,
+        'pending'
+      );
+
+      await this.challengeService.updateChallengeStatus(
+        request.challengeId,
+        'available'
+      );
+
+      await this.loadRequests();
+
+    } catch (error) {
+
+      console.error(
+        'Error deshaciendo aceptación:',
+        error
+      );
+    }
   }
 
-
   /**
-   * Acepta una solicitud de reto y marca el reto asociado como completed.
+   * Elimina la solicitud y reinicia el reto.
    */
-  acceptRequest(requestId: string): void {
-    const request = this.requests.find(req => req.id === requestId);
+  async resetChallengeRequest(
+    requestId: string
+  ): Promise<void> {
 
-    if (!request) return;
+    const request =
+      this.requests.find(
+        req => req.id === requestId
+      );
 
-    // Actualizamos la solicitud en memoria
-    this.requests = this.requests.map(req =>
-      req.id === requestId
-        ? { ...req, status: 'accepted' }
-        : req
+    if (!request) {
+      return;
+    }
+
+    try {
+
+      await this.challengeService.deleteRequest(
+        requestId
+      );
+
+      await this.challengeService.updateChallengeStatus(
+        request.challengeId,
+        'available'
+      );
+
+      await this.loadRequests();
+
+    } catch (error) {
+
+      console.error(
+        'Error reiniciando solicitud:',
+        error
+      );
+    }
+  }
+
+  // =========================================================
+  // RECOMPENSAS
+  // Por ahora todavía siguen con RewardService/localStorage
+  // =========================================================
+
+  acceptRewardRequest(
+    requestId: string
+  ): void {
+
+    this.rewardService.acceptRewardRequest(
+      requestId
     );
 
-    // Guardamos solicitudes
-    this.saveRequests();
-
-    // Marcamos el reto como completado
-    this.challengeService.updateChallengeStatus(request.challengeId, 'completed');
+    this.rewardRequests =
+      this.rewardService.getRewardRequests();
   }
 
-  /**
-   * Deshace una aceptación de reto y lo devuelve a available.
-   */
-  undoAcceptRequest(requestId: string): void {
-    const request = this.requests.find(req => req.id === requestId);
+  deleteRewardRequest(
+    requestId: string
+  ): void {
 
-    if (!request) return;
-
-    // La solicitud vuelve a pending
-    this.requests = this.requests.map(req =>
-      req.id === requestId
-        ? { ...req, status: 'pending' }
-        : req
+    this.rewardService.deleteRewardRequest(
+      requestId
     );
 
-    // Guardamos solicitudes
-    this.saveRequests();
-
-    // El reto vuelve a disponible
-    this.challengeService.updateChallengeStatus(request.challengeId, 'available');
+    this.rewardRequests =
+      this.rewardService.getRewardRequests();
   }
 
-  /**
-   * Acepta una solicitud de recompensa:
-   * - marca la solicitud como accepted
-   * - cambia la recompensa a used
-   */
-  acceptRewardRequest(requestId: string): void {
-    this.rewardService.acceptRewardRequest(requestId);
-    this.rewardRequests = this.rewardService.getRewardRequests();
+  undoAcceptRewardRequest(
+    requestId: string
+  ): void {
+
+    this.rewardService.undoAcceptRewardRequest(
+      requestId
+    );
+
+    this.rewardRequests =
+      this.rewardService.getRewardRequests();
   }
 
-  /**
-   * Borra una solicitud de recompensa pendiente:
-   * - elimina la solicitud
-   * - devuelve la recompensa a available
-   */
-  deleteRewardRequest(requestId: string): void {
-    this.rewardService.deleteRewardRequest(requestId);
-    this.rewardRequests = this.rewardService.getRewardRequests();
-  }
+  // =========================================================
+  // TEXTOS
+  // =========================================================
 
-  /**
-   * Deshace una aceptación de recompensa:
-   * - devuelve la solicitud a pending
-   * - devuelve la recompensa a available
-   */
-  undoAcceptRewardRequest(requestId: string): void {
-    this.rewardService.undoAcceptRewardRequest(requestId);
-    this.rewardRequests = this.rewardService.getRewardRequests();
-  }
+  getTypeLabel(
+    type: ChallengeType
+  ): string {
 
-  /**
-   * Texto bonito para mostrar el tipo de reto.
-   */
-  getTypeLabel(type: ChallengeType): string {
-    if (type === 'mandatory') return 'Obligatorio';
-    if (type === 'optional') return 'Opcional';
-    if (type === 'quiz') return 'Quiz Bilbao';
+    if (type === 'mandatory') {
+      return 'Obligatorio';
+    }
+
+    if (type === 'optional') {
+      return 'Opcional';
+    }
+
+    if (type === 'quiz') {
+      return 'Quiz Bilbao';
+    }
+
     return 'Euskera';
   }
 
-  resetChallengeRequest(requestId: string): void {
-    const request = this.requests.find(req => req.id === requestId);
-
-    if (!request) return;
-
-    // 1. Eliminamos la solicitud
-    this.requests = this.requests.filter(req => req.id !== requestId);
-    this.saveRequests();
-
-    // 2. Reiniciamos el reto
-    this.challengeService.updateChallengeStatus(request.challengeId, 'available');
-  }
+  // =========================================================
+  // HERRAMIENTAS ADMIN
+  // NOTA: algunas todavía usan localStorage porque aún
+  // no hemos migrado esas partes.
+  // =========================================================
 
   resetAllData(): void {
-    localStorage.removeItem('passportChallenges');
+
+    // Aún no lo adaptamos a Firebase.
+    // No lo uses todavía para resetear retos/lugares,
+    // porque esas partes ya están en Firestore.
+
     localStorage.removeItem('passportRewards');
     localStorage.removeItem('rewardClaimRequests');
-    localStorage.removeItem('pendingChallengeRequests');
-    localStorage.removeItem('unlockedPlaces');
     localStorage.removeItem('euskeraQuizProgress');
     localStorage.removeItem('euskeraHistory');
     localStorage.removeItem('rewardedEuskeraLevels');
     localStorage.removeItem('rewardedBilbaoLevels');
-    localStorage.removeItem('placePhotoAlbums');
 
-    this.requests = [];
     this.rewardRequests = [];
   }
 
   resetChallengesData(): void {
-    localStorage.removeItem('passportChallenges');
-    localStorage.removeItem('pendingChallengeRequests');
+
+    // Los retos ya están en Firebase.
+    // Lo adaptaremos cuando hagamos el reset admin real.
+
     localStorage.removeItem('euskeraQuizProgress');
     localStorage.removeItem('euskeraHistory');
     localStorage.removeItem('rewardedEuskeraLevels');
@@ -212,26 +328,38 @@ export class PendingRequestsComponent implements OnInit {
   }
 
   resetRewardsData(): void {
-    localStorage.removeItem('passportRewards');
-    localStorage.removeItem('rewardClaimRequests');
+
+    localStorage.removeItem(
+      'passportRewards'
+    );
+
+    localStorage.removeItem(
+      'rewardClaimRequests'
+    );
 
     this.rewardRequests = [];
   }
 
   resetPlacesData(): void {
-    localStorage.removeItem('unlockedPlaces');
+    // Los lugares ya están en Firebase.
+    // Lo adaptaremos después.
   }
 
   resetPlacePhotos(): void {
-    localStorage.removeItem('placePhotoAlbums');
+    // Las fotos ya están en Firebase Storage.
+    // NO borrar localStorage aquí.
+    // Luego crearemos un reset real de Storage.
   }
 
   resetAvatar(): void {
-    localStorage.removeItem('selectedAvatar');
+    // El avatar ya está en Firestore.
+    // Lo adaptaremos después.
   }
 
   resetAdminMode(): void {
+
     localStorage.removeItem('adminMode');
+
     this.adminService.disableAdmin();
   }
 }

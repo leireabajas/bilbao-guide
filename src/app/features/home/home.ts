@@ -47,14 +47,13 @@ export class HomeComponent implements OnInit {
     this.buildWelcomeMessage();
   }
 
-  private loadStats(): void {
-    const challenges = this.challengeService.getChallenges();
-    this.totalChallenges = challenges.length;
-    this.completedChallenges = challenges.filter(c => c.status === 'completed').length;
+  private async loadStats(): Promise<void> {
+    const challenges = await this.challengeService.getChallenges();
 
-    const rewards = this.rewardService.getRewards();
-    this.unlockedRewards = rewards.filter(
-      r => r.status === 'available' || r.status === 'pending' || r.status === 'used'
+    this.totalChallenges = challenges.length;
+
+    this.completedChallenges = challenges.filter(
+      c => c.status === 'completed'
     ).length;
 
     const unlockedPlacesRaw = localStorage.getItem('unlockedPlaces');

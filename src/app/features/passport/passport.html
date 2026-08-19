@@ -332,17 +332,31 @@
     <!-- CONTENIDO -->
     <div class="history-list" *ngIf="showCompletedEuskera">
       <div class="history-item" *ngFor="let completed of completedEuskeraHistory">
+
         <div>
           <strong>{{ completed.title }}</strong>
           <p>{{ completed.description }}</p>
+
+          <small class="completed-type">
+            {{ getTypeLabel(completed.type) }}
+          </small>
         </div>
 
         <button
           class="challenge-action secondary"
+          *ngIf="completed.type === 'euskera'"
           (click)="openEuskeraQuiz(completed)"
         >
           Volver a practicar
         </button>
+
+        <span
+          class="completed-registered"
+          *ngIf="completed.type !== 'euskera'"
+        >
+    ✓ Registrado
+  </span>
+
       </div>
     </div>
 

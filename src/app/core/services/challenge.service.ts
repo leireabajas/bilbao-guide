@@ -1,4 +1,9 @@
 import { Injectable } from '@angular/core';
+import {AuthService} from './auth';
+import {ChallengeProgressService} from './challenge-progress';
+import {ChallengeRequestService} from './challenge-request';
+
+
 
 export type ChallengeType =
   | 'mandatory'
@@ -17,7 +22,6 @@ export interface ChallengeItem {
   rewardLabel?: string;
   level?: 1 | 2 | 3;
 
-  // Datos opcionales para retos tipo quiz
   quiz?: {
     question: string;
     options: string[];
@@ -46,36 +50,50 @@ export interface PendingRequest {
   providedIn: 'root'
 })
 export class ChallengeService {
-  private readonly challengesKey = 'passportChallenges';
-  private readonly pendingRequestsKey = 'pendingChallengeRequests';
 
-  // Lee todos los retos guardados
-  getChallenges(): ChallengeItem[] {
-    const data = localStorage.getItem(this.challengesKey);
 
-    if (!data) {
-      return [];
-    }
+  constructor(
+    private authService: AuthService,
+    private challengeProgressService: ChallengeProgressService,
+    private challengeRequestService: ChallengeRequestService
+  ) {}
 
+  // ===== RETOS EN FIREBASE =====
+
+  async getChallenges(): Promise<ChallengeItem[]> {
     try {
-      return JSON.parse(data);
+      const userId = await this.authService.getUserIdAsync();
+
+      return await this.challengeProgressService.getChallenges(userId);
+
     } catch (error) {
-      console.error('Error leyendo passportChallenges:', error);
+      console.error('Error leyendo retos desde Firestore:', error);
       return [];
     }
   }
 
-  // Guarda la lista completa de retos
-  saveChallenges(challenges: ChallengeItem[]): void {
-    localStorage.setItem(this.challengesKey, JSON.stringify(challenges));
+  async saveChallenges(
+    challenges: ChallengeItem[]
+  ): Promise<void> {
+    try {
+      const userId = await this.authService.getUserIdAsync();
+
+      await this.challengeProgressService.saveChallenges(
+        userId,
+        challenges
+      );
+
+    } catch (error) {
+      console.error('Error guardando retos en Firestore:', error);
+    }
   }
 
-  // Actualiza el estado de un reto concreto
-  updateChallengeStatus(
+  async updateChallengeStatus(
     challengeId: string,
     newStatus: ChallengeStatus
-  ): void {
-    const challenges = this.getChallenges();
+  ): Promise<void> {
+
+    const challenges = await this.getChallenges();
 
     const updatedChallenges = challenges.map(challenge => {
       if (challenge.id === challengeId) {
@@ -88,94 +106,14 @@ export class ChallengeService {
       return challenge;
     });
 
-    this.saveChallenges(updatedChallenges);
+    await this.saveChallenges(updatedChallenges);
   }
 
-  // Lee todas las solicitudes pendientes/aceptadas
-  getPendingRequests(): PendingRequest[] {
-    const data = localStorage.getItem(this.pendingRequestsKey);
+  async resetChallenge(
+    challengeId: string
+  ): Promise<void> {
 
-    if (!data) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(data);
-    } catch (error) {
-      console.error('Error leyendo pendingChallengeRequests:', error);
-      return [];
-    }
-  }
-
-  // Guarda la lista completa de solicitudes
-  savePendingRequests(requests: PendingRequest[]): void {
-    localStorage.setItem(this.pendingRequestsKey, JSON.stringify(requests));
-  }
-
-  // Comprueba si un reto ya tiene solicitud pendiente
-  hasPendingRequest(challengeId: string): boolean {
-    const requests = this.getPendingRequests();
-
-    return requests.some(
-      request =>
-        request.challengeId === challengeId &&
-        request.status === 'pending'
-    );
-  }
-
-  // Crea una nueva solicitud de validación si no existe ya
-  createPendingRequest(challenge: ChallengeItem): void {
-    if (challenge.status === 'completed') {
-      return;
-    }
-
-    const requests = this.getPendingRequests();
-
-    const alreadyRequested = requests.some(
-      request => request.challengeId === challenge.id
-    );
-
-    if (alreadyRequested) {
-      return;
-    }
-
-    const newRequest: PendingRequest = {
-      id: `request-${Date.now()}`,
-      challengeId: challenge.id,
-      title: challenge.title,
-      type: challenge.type,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-
-    requests.push(newRequest);
-    this.savePendingRequests(requests);
-  }
-
-  // Cambia el estado de una solicitud concreta
-  updateRequestStatus(
-    requestId: string,
-    newStatus: 'pending' | 'accepted'
-  ): void {
-    const requests = this.getPendingRequests();
-
-    const updatedRequests = requests.map(request => {
-      if (request.id === requestId) {
-        return {
-          ...request,
-          status: newStatus
-        };
-      }
-
-      return request;
-    });
-
-    this.savePendingRequests(updatedRequests);
-  }
-
-  resetChallenge(challengeId: string): void {
-    // 1. Reiniciamos el estado del reto
-    const challenges = this.getChallenges();
+    const challenges = await this.getChallenges();
 
     const updatedChallenges = challenges.map(challenge => {
       if (challenge.id === challengeId) {
@@ -188,15 +126,121 @@ export class ChallengeService {
       return challenge;
     });
 
-    this.saveChallenges(updatedChallenges);
+    await this.saveChallenges(updatedChallenges);
 
-    // 2. Eliminamos solicitudes asociadas a ese reto
-    const requests = this.getPendingRequests();
+    // Eliminamos de Firebase las solicitudes asociadas al reto
+    const userId = await this.authService.getUserIdAsync();
 
-    const filteredRequests = requests.filter(
-      request => request.challengeId !== challengeId
+    const requests =
+      await this.challengeRequestService.getRequests(userId);
+
+    const relatedRequests = requests.filter(
+      request => request.challengeId === challengeId
     );
 
-    this.savePendingRequests(filteredRequests);
+    for (const request of relatedRequests) {
+      await this.challengeRequestService.deleteRequest(
+        userId,
+        request.id
+      );
+    }
+
+
+  }
+
+// ===== SOLICITUDES EN FIREBASE =====
+
+  async getPendingRequests(): Promise<PendingRequest[]> {
+    try {
+      const userId = await this.authService.getUserIdAsync();
+
+      return await this.challengeRequestService.getRequests(userId);
+
+    } catch (error) {
+      console.error('Error leyendo solicitudes:', error);
+      return [];
+    }
+  }
+
+  async hasPendingRequest(
+    challengeId: string
+  ): Promise<boolean> {
+    const requests = await this.getPendingRequests();
+
+    return requests.some(
+      request =>
+        request.challengeId === challengeId &&
+        request.status === 'pending'
+    );
+  }
+
+  async createPendingRequest(
+    challenge: ChallengeItem
+  ): Promise<void> {
+
+    console.log('1 - createPendingRequest entra:', challenge.id);
+
+    if (challenge.status === 'completed') {
+      console.log('2 - reto ya completado');
+      return;
+    }
+
+    const userId = await this.authService.getUserIdAsync();
+
+    console.log('3 - UID:', userId);
+
+    const requests =
+      await this.challengeRequestService.getRequests(userId);
+
+    console.log('4 - solicitudes actuales:', requests);
+
+    const alreadyRequested = requests.some(
+      request => request.challengeId === challenge.id
+    );
+
+    if (alreadyRequested) {
+      console.log('5 - ya existe solicitud');
+      return;
+    }
+
+    console.log('6 - creando solicitud...');
+
+    await this.challengeRequestService.createRequest(
+      userId,
+      {
+        challengeId: challenge.id,
+        title: challenge.title,
+        type: challenge.type,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      }
+    );
+
+    console.log('7 - SOLICITUD CREADA');
+  }
+
+  async updateRequestStatus(
+    requestId: string,
+    newStatus: 'pending' | 'accepted'
+  ): Promise<void> {
+
+    const userId = await this.authService.getUserIdAsync();
+
+    await this.challengeRequestService.updateRequestStatus(
+      userId,
+      requestId,
+      newStatus
+    );
+  }
+  async deleteRequest(
+    requestId: string
+  ): Promise<void> {
+
+    const userId = await this.authService.getUserIdAsync();
+
+    await this.challengeRequestService.deleteRequest(
+      userId,
+      requestId
+    );
   }
 }

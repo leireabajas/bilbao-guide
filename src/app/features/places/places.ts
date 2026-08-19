@@ -14,8 +14,10 @@ import { AdminService } from '../../core/services/admin.service';
 
 
 
+
 import {AuthService} from '../../core/services/auth';
 import {PlacePhoto, PlacePhotoService} from '../../core/services/place-photo';
+import {PlaceProgressService} from '../../core/services/place-progress';
 
 @Component({
   selector: 'app-places',
@@ -105,17 +107,20 @@ export class PlacesComponent implements AfterViewInit, OnDestroy {
     private profileService: ProfileService,
     private adminService: AdminService,
     private authService: AuthService,
-    private placePhotoService: PlacePhotoService
+    private placePhotoService: PlacePhotoService,
+    private placeProgressService: PlaceProgressService
   ) {}
 
   ngAfterViewInit(): void {
-    // Recuperamos si el modo admin ya estaba activado
+
     this.isAdminMode = this.adminService.isAdmin();
 
     this.loadItineraryPlacesFilter();
 
     this.initMap();
+
     this.trackUser();
+
     this.loadProgress();
 
   }
@@ -127,29 +132,55 @@ export class PlacesComponent implements AfterViewInit, OnDestroy {
   }
 
   // --- MEMORIA DEL JUEGO ---
-  // Guarda en localStorage los lugares que ya están desbloqueados
-  saveProgress() {
-    const unlockedNames = this.places
-      .filter(place => !place.locked)
-      .map(place => place.name);
+  async saveProgress(): Promise<void> {
 
-    localStorage.setItem('unlockedPlaces', JSON.stringify(unlockedNames));
+    try {
+
+      const userId = await this.authService.getUserIdAsync();
+
+      const unlockedPlaceIds = this.places
+        .filter(place => !place.locked)
+        .map(place => place.id);
+
+      await this.placeProgressService.saveUnlockedPlaces(
+        userId,
+        unlockedPlaceIds
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Error guardando lugares desbloqueados:',
+        error
+      );
+
+    }
   }
 
   // Carga los lugares desbloqueados guardados anteriormente
-  loadProgress() {
-    const savedData = localStorage.getItem('unlockedPlaces');
+  async loadProgress(): Promise<void> {
 
-    if (savedData) {
-      const unlockedNames = JSON.parse(savedData);
+    try {
+
+      const userId = await this.authService.getUserIdAsync();
+
+      const unlockedPlaceIds =
+        await this.placeProgressService.getUnlockedPlaces(userId);
 
       this.places.forEach(place => {
-        if (unlockedNames.includes(place.name)) {
-          place.locked = false;
-        }
+        place.locked = !unlockedPlaceIds.includes(place.id);
       });
 
       this.updateMarkers();
+      this.cdr.detectChanges();
+
+    } catch (error) {
+
+      console.error(
+        'Error cargando lugares desbloqueados:',
+        error
+      );
+
     }
   }
   openPhotoViewer(photo: PlacePhoto): void {

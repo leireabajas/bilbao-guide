@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { NgIf } from '@angular/common';
 import {
   RouterOutlet,
@@ -33,7 +33,7 @@ import {AuthService} from './core/services/auth';
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Bilbao Guide';
-  avatarUrl: string = 'assets/avatars/default.png';
+  avatarUrl: string = 'assets/avatars/Harry.png';
 
   // Controla si la pestaña de pendientes debe verse o no
   isAdminMode = false;
@@ -51,18 +51,16 @@ export class AppComponent implements OnInit, OnDestroy {
     private profileService: ProfileService,
     private adminService: AdminService,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     // Cargamos avatar inicial
-    this.avatarUrl = this.profileService.getAvatarUrl();
-
-    // Escucha cambios del avatar seleccionado
     this.avatarSubscription = this.profileService.avatar$.subscribe(() => {
       this.avatarUrl = this.profileService.getAvatarUrl();
+      this.cdr.detectChanges();
     });
-
     // Escucha cambios del modo admin en tiempo real
     this.adminSubscription = this.adminService.adminMode$.subscribe((isAdmin) => {
       this.isAdminMode = isAdmin;
